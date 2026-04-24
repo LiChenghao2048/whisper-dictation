@@ -10,14 +10,16 @@ class TextTyper:
             return
         saved = pyperclip.paste()
         pyperclip.copy(text)
-        subprocess.run(
-            [
-                "osascript", "-e",
-                'tell application "System Events" to keystroke "v" using command down',
-            ],
-            check=True,
-            capture_output=True,
-        )
-        # Brief pause so the paste event completes before we restore the clipboard
-        time.sleep(0.15)
-        pyperclip.copy(saved)
+        try:
+            subprocess.run(
+                [
+                    "osascript", "-e",
+                    'tell application "System Events" to keystroke "v" using command down',
+                ],
+                check=True,
+                capture_output=True,
+            )
+            # Brief pause so the paste event completes before restoring the clipboard
+            time.sleep(0.15)
+        finally:
+            pyperclip.copy(saved)

@@ -41,6 +41,21 @@ def test_type_text_empty_string_does_nothing(mocker):
     mock_run.assert_not_called()
 
 
+def test_type_text_restores_clipboard_even_on_osascript_failure(mocker):
+    mocker.patch("typer.pyperclip.paste", return_value="important text")
+    mock_copy = mocker.patch("typer.pyperclip.copy")
+    import subprocess
+    mocker.patch("typer.subprocess.run", side_effect=subprocess.CalledProcessError(1, "osascript"))
+    mocker.patch("typer.time.sleep")
+
+    with pytest.raises(subprocess.CalledProcessError):
+        TextTyper().type_text("hello")
+
+    # Clipboard must be restored despite the error
+    calls = [c.args[0] for c in mock_copy.call_args_list]
+    assert calls[-1] == "important text"
+
+
 def test_type_text_unicode(mocker):
     mocker.patch("typer.pyperclip.paste", return_value="")
     mock_copy = mocker.patch("typer.pyperclip.copy")
