@@ -1,0 +1,9 @@
+hotkey: alt_r   # right option key
+mode: hold      # hold or toggle
+model: small
+language: en
+task: transcribe  # transcribe or translate
+
+server:
+  host: localhost
+  port: 50060
