@@ -51,7 +51,8 @@ class WhisperServer:
                 r = requests.get(f"{self._base_url}/health", timeout=2)
                 if r.status_code == 200:
                     return
-            except requests.ConnectionError:
+            except requests.RequestException:
+                # Covers ConnectionError, ReadTimeout, and any other transport error
                 pass
             time.sleep(1)
         self.stop()
@@ -69,6 +70,13 @@ class WhisperServer:
                 self._process.wait()
             self._process = None
 
+    def is_alive(self) -> bool:
+        return self._process is not None and self._process.poll() is None
+
+    def restart(self, timeout: float = 150.0) -> None:
+        self.stop()
+        self.start(timeout=timeout)
+
     def transcribe(self, audio: np.ndarray) -> str:
         if len(audio) < SAMPLE_RATE * MIN_AUDIO_SECONDS:
             return ""
@@ -84,7 +92,8 @@ class WhisperServer:
 
 def _to_wav_bytes(audio: np.ndarray, sample_rate: int = SAMPLE_RATE) -> bytes:
     buf = io.BytesIO()
-    pcm = (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
+    # Scale by 32768 so -1.0 maps to -32768 and clip ensures +1.0 stays at 32767
+    pcm = np.clip(audio * 32768, -32768, 32767).astype(np.int16)
     with wave.open(buf, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)

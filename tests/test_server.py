@@ -1,7 +1,8 @@
 import io
+import itertools
 import wave
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -29,19 +30,17 @@ def _make_server(**kwargs):
 # --- endpoint selection ---
 
 def test_transcribe_task_uses_transcriptions_endpoint():
-    server = _make_server(task="transcribe")
-    assert server._endpoint == "/v1/audio/transcriptions"
+    assert _make_server(task="transcribe")._endpoint == "/v1/audio/transcriptions"
 
 
 def test_translate_task_uses_translations_endpoint():
-    server = _make_server(task="translate")
-    assert server._endpoint == "/v1/audio/translations"
+    assert _make_server(task="translate")._endpoint == "/v1/audio/translations"
 
 
 # --- start / stop ---
 
 def test_start_polls_health_until_ok(mocker):
-    mock_popen = mocker.patch("server.subprocess.Popen")
+    mocker.patch("server.subprocess.Popen")
     mock_get = mocker.patch("server.requests.get")
     mock_get.side_effect = [
         requests.ConnectionError(),
@@ -50,21 +49,38 @@ def test_start_polls_health_until_ok(mocker):
     ]
     mocker.patch("server.time.sleep")
 
-    server = _make_server()
-    server.start(timeout=10)
+    _make_server().start(timeout=10)
 
     assert mock_get.call_count == 3
+
+
+def test_start_handles_read_timeout_not_just_connection_error(mocker):
+    """ReadTimeout must not leak the subprocess — it must be caught like ConnectionError."""
+    mocker.patch("server.subprocess.Popen")
+    mock_get = mocker.patch("server.requests.get")
+    mock_get.side_effect = [
+        requests.ReadTimeout(),
+        MagicMock(status_code=200),
+    ]
+    mocker.patch("server.time.sleep")
+
+    _make_server().start(timeout=10)  # must not raise
+
+    assert mock_get.call_count == 2
 
 
 def test_start_raises_timeout_when_server_never_healthy(mocker):
     mocker.patch("server.subprocess.Popen")
     mocker.patch("server.requests.get", side_effect=requests.ConnectionError())
     mocker.patch("server.time.sleep")
-    mocker.patch("server.time.monotonic", side_effect=[0, 0, 200])  # immediate timeout
+    # First call returns 0 (start), subsequent calls return a value past deadline
+    mocker.patch(
+        "server.time.monotonic",
+        side_effect=itertools.chain([0.0], itertools.repeat(200.0)),
+    )
 
-    server = _make_server()
     with pytest.raises(TimeoutError):
-        server.start(timeout=1)
+        _make_server().start(timeout=1)
 
 
 def test_stop_terminates_process(mocker):
@@ -92,9 +108,45 @@ def test_stop_kills_if_terminate_hangs(mocker):
 
 
 def test_stop_is_idempotent():
+    _make_server().stop()
+    _make_server().stop()
+
+
+# --- is_alive / restart ---
+
+def test_is_alive_false_when_no_process():
+    assert _make_server().is_alive() is False
+
+
+def test_is_alive_true_when_process_running(mocker):
+    mock_process = mocker.MagicMock()
+    mock_process.poll.return_value = None  # still running
     server = _make_server()
-    server.stop()  # called with no process — must not raise
-    server.stop()
+    server._process = mock_process
+    assert server.is_alive() is True
+
+
+def test_is_alive_false_when_process_exited(mocker):
+    mock_process = mocker.MagicMock()
+    mock_process.poll.return_value = 1  # exited
+    server = _make_server()
+    server._process = mock_process
+    assert server.is_alive() is False
+
+
+def test_restart_stops_then_starts(mocker):
+    mocker.patch("server.subprocess.Popen")
+    mock_get = mocker.patch("server.requests.get", return_value=MagicMock(status_code=200))
+    mocker.patch("server.time.sleep")
+
+    server = _make_server()
+    mock_process = mocker.MagicMock()
+    server._process = mock_process
+
+    server.restart()
+
+    mock_process.terminate.assert_called_once()  # stop() was called
+    assert mock_get.called                        # start() was called
 
 
 # --- transcribe ---
@@ -104,18 +156,13 @@ def test_transcribe_returns_text(mocker):
     mock_post.return_value.json.return_value = {"text": " hello world "}
     mock_post.return_value.raise_for_status = MagicMock()
 
-    server = _make_server()
     audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
-    result = server.transcribe(audio)
-
-    assert result == "hello world"
+    assert _make_server().transcribe(audio) == "hello world"
 
 
 def test_transcribe_skips_too_short_audio():
-    server = _make_server()
-    short_audio = np.zeros(int(SAMPLE_RATE * MIN_AUDIO_SECONDS) - 1, dtype="float32")
-    result = server.transcribe(short_audio)
-    assert result == ""
+    short = np.zeros(int(SAMPLE_RATE * MIN_AUDIO_SECONDS) - 1, dtype="float32")
+    assert _make_server().transcribe(short) == ""
 
 
 # --- _to_wav_bytes ---
@@ -138,5 +185,5 @@ def test_to_wav_bytes_clips_values():
     with wave.open(io.BytesIO(wav)) as wf:
         raw = wf.readframes(3)
     samples = np.frombuffer(raw, dtype="<i2")
-    assert samples[0] == 32767   # clipped to max
-    assert samples[1] == -32767  # clipped to min
+    assert samples[0] == 32767   # +overflow clipped to int16 max
+    assert samples[1] == -32768  # -overflow clipped to int16 min

@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 import numpy as np
-import yaml
+import requests
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -54,6 +54,15 @@ def main() -> None:
                 text = server.transcribe(audio)
                 if text:
                     typer.type_text(text)
+            except requests.RequestException as exc:
+                print(f"[whisper-dictation] network error: {exc}", file=sys.stderr)
+                if not server.is_alive():
+                    print("[whisper-dictation] server crashed — restarting…", file=sys.stderr)
+                    try:
+                        server.restart()
+                        print("[whisper-dictation] server restarted", file=sys.stderr)
+                    except Exception as restart_exc:
+                        print(f"[whisper-dictation] restart failed: {restart_exc}", file=sys.stderr)
             except Exception as exc:
                 print(f"[whisper-dictation] transcription error: {exc}", file=sys.stderr)
             finally:
@@ -76,12 +85,10 @@ def main() -> None:
         on_stop=on_stop,
     )
 
+    # Signal handler only sets the event — all teardown happens in the main thread
+    # after the loop exits, avoiding sys.exit() bypassing cleanup.
     def shutdown(sig=None, frame=None) -> None:
-        print("\n[whisper-dictation] shutting down…")
         stop_event.set()
-        listener.stop()
-        server.stop()
-        sys.exit(0)
 
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
@@ -97,6 +104,11 @@ def main() -> None:
 
     while not stop_event.is_set():
         time.sleep(0.5)
+
+    print("\n[whisper-dictation] shutting down…")
+    listener.stop()
+    worker_thread.join(timeout=2)
+    server.stop()
 
 
 if __name__ == "__main__":

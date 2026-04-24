@@ -1,4 +1,4 @@
-import pytest
+import threading
 from unittest.mock import MagicMock, patch
 from pynput import keyboard
 
@@ -61,7 +61,7 @@ def test_toggle_second_press_stops():
 def test_toggle_release_does_nothing():
     listener, on_start, on_stop = _make_listener("toggle")
     listener._on_press(keyboard.Key.alt_r)
-    listener._on_release(keyboard.Key.alt_r)  # should not trigger on_stop in toggle mode
+    listener._on_release(keyboard.Key.alt_r)
     on_stop.assert_not_called()
 
 
@@ -89,3 +89,24 @@ def test_stop_resets_recording_flag(mocker):
     listener.stop()
     assert listener._recording is False
     assert listener._listener is None
+
+
+# --- thread safety ---
+
+def test_recording_flag_protected_by_lock():
+    """stop() and _on_press() share the same lock — stop() must wait for any in-progress press."""
+    listener, on_start, on_stop = _make_listener("hold")
+    results = []
+
+    def slow_press():
+        with listener._lock:
+            listener._recording = True
+            results.append("press_started")
+
+    t = threading.Thread(target=slow_press)
+    t.start()
+    t.join()
+
+    listener.stop()  # must acquire lock cleanly and reset _recording
+    assert listener._recording is False
+    assert results == ["press_started"]
