@@ -118,6 +118,7 @@ def main() -> None:
 
     print("\n[whisper-dictation] shutting down…")
     listener.stop()
+    recorder.stop()  # close mic stream if hotkey was held at shutdown
     worker_thread.join(timeout=2)
     server.stop()
 

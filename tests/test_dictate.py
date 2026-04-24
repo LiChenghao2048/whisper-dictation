@@ -109,6 +109,26 @@ def test_worker_does_not_restart_on_network_error_when_process_alive(mocker):
     mock_server.restart.assert_not_called()
 
 
+def test_recorder_stopped_on_shutdown_while_recording(mocker):
+    """If the mic is active when shutdown fires, recorder.stop() must be called
+    so the PortAudio stream is closed and the microphone is released."""
+    mock_stream = mocker.MagicMock()
+    mocker.patch("audio.sd.InputStream", return_value=mock_stream)
+
+    from audio import AudioRecorder
+    recorder = AudioRecorder()
+    recorder.start()  # simulate: user is mid-recording when shutdown fires
+
+    assert recorder._stream is not None
+
+    recorder.stop()  # this is what main() calls in its shutdown sequence
+
+    mock_stream.stop.assert_called_once()
+    mock_stream.close.assert_called_once()
+    assert recorder._stream is None
+    assert recorder._frames == []
+
+
 def test_worker_continues_after_failed_restart(mocker):
     """A restart failure must not crash the worker — it should keep processing."""
     mock_server = mocker.MagicMock(spec=WhisperServer)
