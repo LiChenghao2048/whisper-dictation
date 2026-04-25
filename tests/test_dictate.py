@@ -188,6 +188,36 @@ def test_worker_debug_audio_prints_afplay_command(mocker, capsys, tmp_path):
     assert "wd-debug-" in captured.err
 
 
+def test_worker_debug_audio_prints_afplay_even_on_network_error(mocker, capsys, tmp_path):
+    """afplay message must fire even when RequestException interrupts after the file was written."""
+    mocker.patch("dictate._DEBUG_DIR", tmp_path)
+
+    def _transcribe(audio, debug_path=None):
+        if debug_path is not None:
+            debug_path.write_bytes(b"fake wav")
+        raise requests.ConnectionError("refused")
+
+    mock_server = mocker.MagicMock(spec=WhisperServer)
+    mock_server.transcribe.side_effect = _transcribe
+    mock_server.is_alive.return_value = True
+    mock_typer = mocker.MagicMock(spec=TextTyper)
+
+    work_queue: queue.Queue = queue.Queue()
+    stop_event = threading.Event()
+
+    t = threading.Thread(
+        target=make_worker(mock_server, mock_typer, work_queue, stop_event, debug_audio=True),
+        daemon=True,
+    )
+    t.start()
+    work_queue.put(np.ones(16000, dtype="float32"))
+    work_queue.join()
+    stop_event.set()
+    t.join(timeout=2)
+
+    assert "afplay" in capsys.readouterr().err
+
+
 def test_worker_debug_audio_no_afplay_on_too_short_clip(mocker, capsys, tmp_path):
     """If audio is too short, transcribe() skips the write — no afplay message must appear."""
     mocker.patch("dictate._DEBUG_DIR", tmp_path)

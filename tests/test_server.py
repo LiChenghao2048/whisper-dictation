@@ -111,6 +111,32 @@ def test_start_raises_immediately_when_process_exits(mocker):
     mock_proc.wait.assert_called_once()  # zombie must be reaped
 
 
+def test_start_returns_cleanly_when_stop_called_concurrently(mocker):
+    """If stop() clears _process while start() is health-polling, start() must not crash."""
+    mock_proc = _running_proc(mocker)
+    server = _make_server()
+
+    original_get = requests.get
+
+    call_count = [0]
+
+    def _get(*args, **kwargs):
+        call_count[0] += 1
+        if call_count[0] == 2:
+            server._process = None  # simulate stop() clearing _process mid-poll
+        raise requests.ConnectionError()
+
+    mocker.patch("server.subprocess.Popen", return_value=mock_proc)
+    mocker.patch("server.requests.get", side_effect=_get)
+    mocker.patch("server.time.sleep")
+    mocker.patch(
+        "server.time.monotonic",
+        side_effect=itertools.chain([0.0], itertools.repeat(0.5)),
+    )
+
+    server.start(timeout=100)  # must return cleanly, not raise AttributeError
+
+
 def test_stop_terminates_process(mocker):
     mock_process = mocker.MagicMock()
     server = _make_server()

@@ -48,9 +48,12 @@ class WhisperServer:
         )
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            if self._process.poll() is not None:
-                exit_code = self._process.returncode
-                self._process.wait()  # reap so the OS entry is fully cleaned up
+            proc = self._process  # local snapshot — stop() may clear _process concurrently
+            if proc is None:
+                return  # stop() was called while we were starting
+            if proc.poll() is not None:
+                exit_code = proc.returncode
+                proc.wait()  # reap so the OS entry is fully cleaned up
                 self._process = None
                 raise RuntimeError(
                     f"WhisperKit server exited during startup (exit code {exit_code})"

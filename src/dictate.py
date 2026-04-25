@@ -45,8 +45,6 @@ def make_worker(
                     _debug_counter[0] += 1
                     debug_path = _DEBUG_DIR / f"wd-debug-{_debug_counter[0]:03d}.wav"
                 text = server.transcribe(audio, debug_path=debug_path)
-                if debug_path is not None and debug_path.exists():
-                    print(f"[whisper-dictation] debug audio saved — run: afplay {debug_path}", file=sys.stderr)
                 if text:
                     print(f"[whisper-dictation] transcribed: {text!r}", file=sys.stderr)
                     typer.type_text(text)
@@ -62,6 +60,8 @@ def make_worker(
             except Exception as exc:
                 print(f"[whisper-dictation] transcription error: {exc}", file=sys.stderr)
             finally:
+                if debug_path is not None and debug_path.exists():
+                    print(f"[whisper-dictation] debug audio saved — run: afplay {debug_path}", file=sys.stderr)
                 work_queue.task_done()
 
     return worker
