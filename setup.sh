@@ -18,6 +18,8 @@ echo "Pinning WhisperKit to ${WHISPERKIT_COMMIT}..."
 git -C WhisperKit checkout "${WHISPERKIT_COMMIT}"
 
 echo "Building WhisperKit server binary (this takes ~4 minutes)..."
+# Clear any stale build cache -- paths are absolute and break if the directory moves
+rm -rf WhisperKit/.build
 ( cd WhisperKit && BUILD_ALL=1 swift build -c release 2>&1 )
 
 echo ""
