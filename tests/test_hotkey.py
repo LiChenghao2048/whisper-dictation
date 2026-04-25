@@ -138,6 +138,7 @@ def test_stop_resets_recording_flag(mocker):
 
     listener.stop()
     assert listener._recording is False
+    assert listener._chord_active is False
     assert listener._listener is None
 
 
@@ -190,7 +191,7 @@ def test_hold_key_repeat_does_not_double_start():
     on_start.assert_called_once()
 
 
-def test_chord_toggle_key_repeat_does_not_re_toggle(mocker):
+def test_chord_toggle_key_repeat_does_not_re_toggle():
     """OS key-repeat must not re-fire the toggle while the chord is still physically held."""
     listener, on_start, on_stop = _make_listener("toggle", keys=["cmd_r", "alt_r"])
     listener._on_press(keyboard.Key.cmd_r)
