@@ -44,7 +44,7 @@ def make_worker(
                 if debug_audio:
                     _debug_counter[0] += 1
                     debug_path = _DEBUG_DIR / f"wd-debug-{_debug_counter[0]:03d}.wav"
-                    print(f"[whisper-dictation] saving audio to {debug_path}", file=sys.stderr)
+                    print(f"[whisper-dictation] debug audio saved — run: afplay {debug_path}", file=sys.stderr)
                 text = server.transcribe(audio, debug_path=debug_path)
                 if text:
                     print(f"[whisper-dictation] transcribed: {text!r}", file=sys.stderr)
@@ -116,7 +116,7 @@ def main() -> None:
     print("[whisper-dictation] starting WhisperKit server...")
     server.start()
 
-    recorder.check()  # warn early if mic is silent
+    recorder.check(verbose=config.debug_audio)  # warn early if mic is silent; list devices only in debug mode
 
     print(f"[whisper-dictation] ready — {config.mode} {config.hotkey} to dictate")
     if config.debug_audio:

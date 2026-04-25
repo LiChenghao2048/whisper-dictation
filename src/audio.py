@@ -18,7 +18,7 @@ class AudioRecorder:
         self._frames: list[np.ndarray] = []
         self._stream: sd.InputStream | None = None
 
-    def check(self) -> None:
+    def check(self, verbose: bool = False) -> None:
         """Record a silent test clip at startup and warn if the mic appears dead."""
         try:
             test = sd.rec(
@@ -37,7 +37,8 @@ class AudioRecorder:
                     f"(RMS={rms:.6f}). Check Privacy & Security → Microphone, "
                     f"or set 'device:' in config.yaml to a different input device."
                 )
-                _print_input_devices()
+                if verbose:
+                    _print_input_devices()
         except Exception as exc:
             print(f"[whisper-dictation] WARNING: mic check failed: {exc}")
 

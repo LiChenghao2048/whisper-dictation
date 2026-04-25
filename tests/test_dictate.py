@@ -129,6 +129,30 @@ def test_recorder_stopped_on_shutdown_while_recording(mocker):
     assert recorder._frames == []
 
 
+def test_worker_debug_audio_prints_afplay_command(mocker, capsys):
+    """In debug mode the worker must print the afplay command so the user can replay the clip."""
+    mock_server = mocker.MagicMock(spec=WhisperServer)
+    mock_server.transcribe.return_value = "hello"
+    mock_typer = mocker.MagicMock(spec=TextTyper)
+
+    work_queue: queue.Queue = queue.Queue()
+    stop_event = threading.Event()
+
+    t = threading.Thread(
+        target=make_worker(mock_server, mock_typer, work_queue, stop_event, debug_audio=True),
+        daemon=True,
+    )
+    t.start()
+    work_queue.put(np.ones(16000, dtype="float32"))
+    work_queue.join()
+    stop_event.set()
+    t.join(timeout=2)
+
+    captured = capsys.readouterr()
+    assert "afplay" in captured.err
+    assert "wd-debug-" in captured.err
+
+
 def test_worker_continues_after_failed_restart(mocker):
     """A restart failure must not crash the worker — it should keep processing."""
     mock_server = mocker.MagicMock(spec=WhisperServer)

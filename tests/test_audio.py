@@ -83,6 +83,28 @@ def test_check_warns_on_silent_mic(mocker, capsys):
     captured = capsys.readouterr()
     assert "WARNING" in captured.out
     assert "silent" in captured.out
+    assert "Available input devices" not in captured.out  # device list suppressed without verbose
+
+
+def test_check_verbose_prints_device_list_on_silent_mic(mocker, capsys):
+    silent = np.zeros((int(0.1 * SAMPLE_RATE), 1), dtype="float32")
+    mocker.patch("audio.sd.rec", return_value=silent)
+    mocker.patch("audio.sd.wait")
+    mocker.patch("audio.sd.default", input=0)
+
+    def _query(device=None):
+        if device is None:
+            return [{"name": "FakeMic", "max_input_channels": 1}]
+        return {"name": "FakeMic"}
+
+    mocker.patch("audio.sd.query_devices", side_effect=_query)
+
+    AudioRecorder().check(verbose=True)
+
+    captured = capsys.readouterr()
+    assert "WARNING" in captured.out
+    assert "Available input devices" in captured.out
+    assert "FakeMic" in captured.out
 
 
 def test_check_passes_silently_on_active_mic(mocker, capsys):
