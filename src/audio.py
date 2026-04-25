@@ -47,14 +47,28 @@ class AudioRecorder:
         if self._stream is not None:
             return
         self._frames = []
-        self._stream = sd.InputStream(
-            samplerate=self._sample_rate,
-            channels=1,
-            dtype="float32",
-            device=self._device,
-            callback=self._callback,
-        )
-        self._stream.start()
+        try:
+            self._stream = sd.InputStream(
+                samplerate=self._sample_rate,
+                channels=1,
+                dtype="float32",
+                device=self._device,
+                callback=self._callback,
+            )
+            self._stream.start()
+        except Exception:
+            # PortAudio state is stale (e.g. default device changed) — reinitialize and retry once
+            self._stream = None
+            sd._terminate()
+            sd._initialize()
+            self._stream = sd.InputStream(
+                samplerate=self._sample_rate,
+                channels=1,
+                dtype="float32",
+                device=self._device,
+                callback=self._callback,
+            )
+            self._stream.start()
 
     def stop(self) -> np.ndarray:
         if self._stream:

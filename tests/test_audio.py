@@ -158,3 +158,36 @@ def test_callback_silent_when_status_is_none(mocker, capsys):
 
     captured = capsys.readouterr()
     assert captured.err == ""
+
+
+def test_start_reinitializes_portaudio_and_retries_on_failure(mocker):
+    """After a stream-open failure (e.g. default device changed), PortAudio is
+    reinitialized and the stream open is retried exactly once."""
+    good_stream = mocker.MagicMock()
+    mock_input_stream = mocker.patch(
+        "audio.sd.InputStream", side_effect=[Exception("paInternalError"), good_stream]
+    )
+    mock_terminate = mocker.patch("audio.sd._terminate")
+    mock_initialize = mocker.patch("audio.sd._initialize")
+
+    recorder = AudioRecorder()
+    recorder.start()
+
+    assert mock_input_stream.call_count == 2
+    mock_terminate.assert_called_once()
+    mock_initialize.assert_called_once()
+    assert recorder._stream is good_stream
+    good_stream.start.assert_called_once()
+
+
+def test_start_propagates_error_when_retry_also_fails(mocker):
+    """If the retry after reinitialization also fails, the exception propagates."""
+    mocker.patch("audio.sd.InputStream", side_effect=Exception("still broken"))
+    mocker.patch("audio.sd._terminate")
+    mocker.patch("audio.sd._initialize")
+
+    recorder = AudioRecorder()
+    with pytest.raises(Exception, match="still broken"):
+        recorder.start()
+
+    assert recorder._stream is None
