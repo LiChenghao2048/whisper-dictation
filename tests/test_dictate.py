@@ -58,16 +58,19 @@ def test_worker_skips_empty_transcription(mocker):
 
 # --- queue bounds ---
 
-def test_queue_full_drops_audio():
-    work_queue: queue.Queue = queue.Queue(maxsize=2)
-    dropped = 0
-    for _ in range(3):
-        try:
-            work_queue.put_nowait(np.zeros(100, dtype="float32"))
-        except queue.Full:
-            dropped += 1
-    assert dropped == 1
-    assert work_queue.qsize() == 2
+def test_on_stop_logs_warning_and_does_not_block_when_queue_full(mocker, capsys):
+    """on_stop must print a warning and not block when the work queue is full."""
+    from audio import AudioRecorder
+    mock_recorder = mocker.MagicMock(spec=AudioRecorder)
+    mock_recorder.stop.return_value = np.zeros(16000, dtype="float32")
+
+    work_queue: queue.Queue = queue.Queue(maxsize=1)
+    work_queue.put_nowait(np.zeros(16000, dtype="float32"))  # fill queue
+
+    _, on_stop = make_callbacks(mock_recorder, work_queue)
+    on_stop()  # must not block or raise
+
+    assert "queue full" in capsys.readouterr().err
 
 
 # --- error isolation ---

@@ -82,7 +82,8 @@ class WhisperServer:
             self._process = None
 
     def is_alive(self) -> bool:
-        return self._process is not None and self._process.poll() is None
+        proc = self._process  # snapshot to avoid TOCTOU if stop() clears _process concurrently
+        return proc is not None and proc.poll() is None
 
     def restart(self, timeout: float = 150.0) -> None:
         self.stop()
