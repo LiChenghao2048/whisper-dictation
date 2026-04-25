@@ -135,6 +135,7 @@ def test_stop_resets_recording_flag(mocker):
     listener.start()
     listener._on_press(keyboard.Key.alt_r)
     assert listener._recording is True
+    assert listener._chord_active is True
 
     listener.stop()
     assert listener._recording is False
