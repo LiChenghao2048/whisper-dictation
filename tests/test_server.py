@@ -108,6 +108,8 @@ def test_start_raises_immediately_when_process_exits(mocker):
     with pytest.raises(RuntimeError, match="exited during startup"):
         _make_server().start(timeout=100)
 
+    mock_proc.wait.assert_called_once()  # zombie must be reaped
+
 
 def test_stop_terminates_process(mocker):
     mock_process = mocker.MagicMock()
