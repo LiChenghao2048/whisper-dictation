@@ -44,8 +44,9 @@ def make_worker(
                 if debug_audio:
                     _debug_counter[0] += 1
                     debug_path = _DEBUG_DIR / f"wd-debug-{_debug_counter[0]:03d}.wav"
-                    print(f"[whisper-dictation] debug audio saved — run: afplay {debug_path}", file=sys.stderr)
                 text = server.transcribe(audio, debug_path=debug_path)
+                if debug_path is not None and debug_path.exists():
+                    print(f"[whisper-dictation] debug audio saved — run: afplay {debug_path}", file=sys.stderr)
                 if text:
                     print(f"[whisper-dictation] transcribed: {text!r}", file=sys.stderr)
                     typer.type_text(text)

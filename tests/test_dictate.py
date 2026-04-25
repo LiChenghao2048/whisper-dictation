@@ -157,10 +157,17 @@ def test_portaudio_error_on_stop_does_not_propagate_and_skips_queue(mocker, caps
     assert work_queue.empty()
 
 
-def test_worker_debug_audio_prints_afplay_command(mocker, capsys):
-    """In debug mode the worker must print the afplay command so the user can replay the clip."""
+def test_worker_debug_audio_prints_afplay_command(mocker, capsys, tmp_path):
+    """afplay message appears only after the WAV file is actually written."""
+    mocker.patch("dictate._DEBUG_DIR", tmp_path)
+
+    def _transcribe(audio, debug_path=None):
+        if debug_path is not None:
+            debug_path.write_bytes(b"fake wav")
+        return "hello"
+
     mock_server = mocker.MagicMock(spec=WhisperServer)
-    mock_server.transcribe.return_value = "hello"
+    mock_server.transcribe.side_effect = _transcribe
     mock_typer = mocker.MagicMock(spec=TextTyper)
 
     work_queue: queue.Queue = queue.Queue()
@@ -179,6 +186,30 @@ def test_worker_debug_audio_prints_afplay_command(mocker, capsys):
     captured = capsys.readouterr()
     assert "afplay" in captured.err
     assert "wd-debug-" in captured.err
+
+
+def test_worker_debug_audio_no_afplay_on_too_short_clip(mocker, capsys, tmp_path):
+    """If audio is too short, transcribe() skips the write — no afplay message must appear."""
+    mocker.patch("dictate._DEBUG_DIR", tmp_path)
+
+    mock_server = mocker.MagicMock(spec=WhisperServer)
+    mock_server.transcribe.return_value = ""  # short-audio early return — file never written
+    mock_typer = mocker.MagicMock(spec=TextTyper)
+
+    work_queue: queue.Queue = queue.Queue()
+    stop_event = threading.Event()
+
+    t = threading.Thread(
+        target=make_worker(mock_server, mock_typer, work_queue, stop_event, debug_audio=True),
+        daemon=True,
+    )
+    t.start()
+    work_queue.put(np.ones(100, dtype="float32"))
+    work_queue.join()
+    stop_event.set()
+    t.join(timeout=2)
+
+    assert "afplay" not in capsys.readouterr().err
 
 
 def test_worker_continues_after_failed_restart(mocker):
