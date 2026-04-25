@@ -55,8 +55,9 @@ def test_toggle_first_press_starts():
 
 def test_toggle_second_press_stops():
     listener, on_start, on_stop = _make_listener("toggle")
-    listener._on_press(keyboard.Key.alt_r)
-    listener._on_press(keyboard.Key.alt_r)
+    listener._on_press(keyboard.Key.alt_r)    # start
+    listener._on_release(keyboard.Key.alt_r)  # release — required before re-trigger
+    listener._on_press(keyboard.Key.alt_r)    # stop
     on_start.assert_called_once()
     on_stop.assert_called_once()
 
@@ -180,11 +181,49 @@ def test_is_alive_false_after_stop(mocker):
     assert listener.is_alive() is False
 
 
+# --- key-repeat suppression ---
+
+def test_hold_key_repeat_does_not_double_start():
+    listener, on_start, on_stop = _make_listener("hold")
+    listener._on_press(keyboard.Key.alt_r)
+    listener._on_press(keyboard.Key.alt_r)  # OS key-repeat while held
+    on_start.assert_called_once()
+
+
+def test_chord_toggle_key_repeat_does_not_re_toggle(mocker):
+    """OS key-repeat must not re-fire the toggle while the chord is still physically held."""
+    listener, on_start, on_stop = _make_listener("toggle", keys=["cmd_r", "alt_r"])
+    listener._on_press(keyboard.Key.cmd_r)
+    listener._on_press(keyboard.Key.alt_r)   # chord complete → start
+    listener._on_press(keyboard.Key.alt_r)   # key-repeat — must be suppressed
+    listener._on_press(keyboard.Key.cmd_r)   # key-repeat — must be suppressed
+    on_start.assert_called_once()
+    on_stop.assert_not_called()
+
+
+def test_chord_toggle_fires_again_after_full_release():
+    """Chord must be re-triggerable after all keys are released."""
+    listener, on_start, on_stop = _make_listener("toggle", keys=["cmd_r", "alt_r"])
+    listener._on_press(keyboard.Key.cmd_r)
+    listener._on_press(keyboard.Key.alt_r)   # start
+    listener._on_release(keyboard.Key.alt_r)
+    listener._on_release(keyboard.Key.cmd_r)
+    listener._on_press(keyboard.Key.cmd_r)
+    listener._on_press(keyboard.Key.alt_r)   # stop
+    on_start.assert_called_once()
+    on_stop.assert_called_once()
+
+
 # --- validation ---
 
 def test_invalid_key_name_raises_value_error():
     with pytest.raises(ValueError, match="invalid_key_xyz"):
         HotkeyListener(keys=["invalid_key_xyz"], mode="hold", on_start=MagicMock(), on_stop=MagicMock())
+
+
+def test_empty_key_list_raises_value_error():
+    with pytest.raises(ValueError, match="at least one key"):
+        HotkeyListener(keys=[], mode="hold", on_start=MagicMock(), on_stop=MagicMock())
 
 
 # --- thread safety ---
