@@ -117,7 +117,7 @@ def main() -> None:
     on_start, on_stop = make_callbacks(recorder, work_queue)
 
     listener = HotkeyListener(
-        key=config.hotkey,
+        keys=config.hotkey,
         mode=config.mode,
         on_start=on_start,
         on_stop=on_stop,
@@ -136,7 +136,7 @@ def main() -> None:
 
     recorder.check(verbose=config.debug_audio)  # warn early if mic is silent; list devices only in debug mode
 
-    print(f"[whisper-dictation] ready — {config.mode} {config.hotkey} to dictate")
+    print(f"[whisper-dictation] ready — {config.mode} {'+'.join(config.hotkey)} to dictate")
     if config.debug_audio:
         print(f"[whisper-dictation] debug_audio on — recordings saved to {_DEBUG_DIR}/wd-debug-NNN.wav")
 
