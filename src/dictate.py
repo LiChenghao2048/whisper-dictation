@@ -149,6 +149,10 @@ def main() -> None:
     listener.start()
 
     while not stop_event.is_set():
+        if not listener.is_alive():
+            print("[whisper-dictation] ERROR: hotkey listener died — check Accessibility permissions", file=sys.stderr)
+            stop_event.set()
+            break
         time.sleep(0.5)
 
     print("\n[whisper-dictation] shutting down...")

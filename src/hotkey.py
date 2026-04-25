@@ -36,6 +36,9 @@ class HotkeyListener:
         with self._lock:
             self._recording = False
 
+    def is_alive(self) -> bool:
+        return self._listener is not None and self._listener.is_alive()
+
     def _on_press(self, key: keyboard.Key | keyboard.KeyCode | None) -> None:
         if key != self._key:
             return

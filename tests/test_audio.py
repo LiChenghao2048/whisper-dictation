@@ -76,7 +76,7 @@ def test_check_warns_on_silent_mic(mocker, capsys):
     mocker.patch("audio.sd.rec", return_value=silent)
     mocker.patch("audio.sd.wait")
     mocker.patch("audio.sd.query_devices", return_value={"name": "FakeMic"})
-    mocker.patch("audio.sd.default", input=0)
+    mocker.patch("audio.sd.default", **{"device": [0, 1]})
 
     AudioRecorder().check()
 
@@ -90,7 +90,7 @@ def test_check_verbose_prints_device_list_on_silent_mic(mocker, capsys):
     silent = np.zeros((int(0.1 * SAMPLE_RATE), 1), dtype="float32")
     mocker.patch("audio.sd.rec", return_value=silent)
     mocker.patch("audio.sd.wait")
-    mocker.patch("audio.sd.default", input=0)
+    mocker.patch("audio.sd.default", **{"device": [0, 1]})
 
     def _query(device=None):
         if device is None:

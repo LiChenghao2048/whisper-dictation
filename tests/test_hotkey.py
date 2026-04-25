@@ -91,6 +91,33 @@ def test_stop_resets_recording_flag(mocker):
     assert listener._listener is None
 
 
+# --- is_alive ---
+
+def test_is_alive_false_before_start():
+    listener, _, _ = _make_listener()
+    assert listener.is_alive() is False
+
+
+def test_is_alive_true_when_running(mocker):
+    mock_kb_listener = mocker.MagicMock()
+    mock_kb_listener.is_alive.return_value = True
+    mocker.patch("hotkey.keyboard.Listener", return_value=mock_kb_listener)
+
+    listener, _, _ = _make_listener()
+    listener.start()
+    assert listener.is_alive() is True
+
+
+def test_is_alive_false_after_stop(mocker):
+    mock_kb_listener = mocker.MagicMock()
+    mocker.patch("hotkey.keyboard.Listener", return_value=mock_kb_listener)
+
+    listener, _, _ = _make_listener()
+    listener.start()
+    listener.stop()
+    assert listener.is_alive() is False
+
+
 # --- thread safety ---
 
 def test_recording_flag_protected_by_lock():
