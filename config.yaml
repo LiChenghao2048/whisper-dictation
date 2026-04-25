@@ -4,6 +4,14 @@ model: small
 language: en
 task: transcribe  # transcribe or translate
 
+# Input device index for the microphone.
+# Leave blank (null) to use the system default.
+# Run: python3 -c "import sounddevice as sd; [print(i, d['name']) for i,d in enumerate(sd.query_devices()) if d['max_input_channels']>0]"
+# to list available devices, then set the index here.
+device: 1       # HD Pro Webcam C920
+
+debug_audio: false  # set true to save each recording to /tmp/wd-debug-NNN.wav
+
 server:
   host: localhost
   port: 50060

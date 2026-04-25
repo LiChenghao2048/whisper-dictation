@@ -4,12 +4,6 @@ import pytest
 from audio import AudioRecorder, SAMPLE_RATE
 
 
-def _make_recorder(mock_sd):
-    """Return a recorder whose sounddevice is mocked out."""
-    recorder = AudioRecorder()
-    return recorder
-
-
 def test_stop_before_start_returns_empty():
     recorder = AudioRecorder()
     audio = recorder.stop()
@@ -25,7 +19,6 @@ def test_frames_cleared_after_stop(mocker):
     recorder = AudioRecorder()
     recorder.start()
 
-    # Simulate two callback chunks
     chunk = np.ones((512, 1), dtype="float32") * 0.5
     recorder._callback(chunk, 512, None, None)
     recorder._callback(chunk, 512, None, None)
@@ -64,6 +57,40 @@ def test_multiple_start_stop_cycles_no_accumulation(mocker):
         recorder._callback(chunk, 100, None, None)
         recorder.stop()
 
-    # After 5 cycles, no frames should remain
     assert recorder._frames == []
     assert recorder._stream is None
+
+
+def test_device_passed_to_inputstream(mocker):
+    mock_stream = mocker.MagicMock()
+    mock_sd = mocker.patch("audio.sd.InputStream", return_value=mock_stream)
+
+    AudioRecorder(device=3).start()
+
+    _, kwargs = mock_sd.call_args
+    assert kwargs["device"] == 3
+
+
+def test_check_warns_on_silent_mic(mocker, capsys):
+    silent = np.zeros((int(0.1 * SAMPLE_RATE), 1), dtype="float32")
+    mocker.patch("audio.sd.rec", return_value=silent)
+    mocker.patch("audio.sd.wait")
+    mocker.patch("audio.sd.query_devices", return_value={"name": "FakeMic"})
+    mocker.patch("audio.sd.default", input=0)
+
+    AudioRecorder().check()
+
+    captured = capsys.readouterr()
+    assert "WARNING" in captured.out
+    assert "silent" in captured.out
+
+
+def test_check_passes_silently_on_active_mic(mocker, capsys):
+    loud = np.ones((int(0.1 * SAMPLE_RATE), 1), dtype="float32") * 0.05
+    mocker.patch("audio.sd.rec", return_value=loud)
+    mocker.patch("audio.sd.wait")
+
+    AudioRecorder().check()
+
+    captured = capsys.readouterr()
+    assert "WARNING" not in captured.out

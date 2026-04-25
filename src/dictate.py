@@ -20,6 +20,7 @@ from server import WhisperServer
 from typer import TextTyper
 
 _QUEUE_MAX = 5  # bounded — prevents unbounded memory growth if server is slow
+_DEBUG_DIR = Path("/tmp")
 
 
 def make_worker(
@@ -27,8 +28,10 @@ def make_worker(
     typer: TextTyper,
     work_queue: queue.Queue,
     stop_event: threading.Event,
+    debug_audio: bool = False,
 ):
     """Return the worker callable. Extracted so it can be unit-tested independently."""
+    _debug_counter = [0]
 
     def worker() -> None:
         while not stop_event.is_set():
@@ -37,13 +40,19 @@ def make_worker(
             except queue.Empty:
                 continue
             try:
-                text = server.transcribe(audio)
+                debug_path = None
+                if debug_audio:
+                    _debug_counter[0] += 1
+                    debug_path = _DEBUG_DIR / f"wd-debug-{_debug_counter[0]:03d}.wav"
+                    print(f"[whisper-dictation] saving audio to {debug_path}", file=sys.stderr)
+                text = server.transcribe(audio, debug_path=debug_path)
                 if text:
+                    print(f"[whisper-dictation] transcribed: {text!r}", file=sys.stderr)
                     typer.type_text(text)
             except requests.RequestException as exc:
                 print(f"[whisper-dictation] network error: {exc}", file=sys.stderr)
                 if not server.is_alive():
-                    print("[whisper-dictation] server crashed — restarting…", file=sys.stderr)
+                    print("[whisper-dictation] server crashed — restarting...", file=sys.stderr)
                     try:
                         server.restart()
                         print("[whisper-dictation] server restarted", file=sys.stderr)
@@ -65,7 +74,7 @@ def main() -> None:
     if not binary.exists():
         sys.exit(f"[whisper-dictation] binary not found at {binary} — run ./setup.sh first")
 
-    recorder = AudioRecorder()
+    recorder = AudioRecorder(device=config.device)
     typer = TextTyper()
     server = WhisperServer(
         binary=binary,
@@ -104,11 +113,19 @@ def main() -> None:
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    print("[whisper-dictation] starting WhisperKit server…")
+    print("[whisper-dictation] starting WhisperKit server...")
     server.start()
-    print(f"[whisper-dictation] ready — {config.mode} {config.hotkey} to dictate")
 
-    worker_thread = threading.Thread(target=make_worker(server, typer, work_queue, stop_event), daemon=True)
+    recorder.check()  # warn early if mic is silent
+
+    print(f"[whisper-dictation] ready — {config.mode} {config.hotkey} to dictate")
+    if config.debug_audio:
+        print(f"[whisper-dictation] debug_audio on — recordings saved to {_DEBUG_DIR}/wd-debug-NNN.wav")
+
+    worker_thread = threading.Thread(
+        target=make_worker(server, typer, work_queue, stop_event, config.debug_audio),
+        daemon=True,
+    )
     worker_thread.start()
 
     listener.start()
@@ -116,7 +133,7 @@ def main() -> None:
     while not stop_event.is_set():
         time.sleep(0.5)
 
-    print("\n[whisper-dictation] shutting down…")
+    print("\n[whisper-dictation] shutting down...")
     listener.stop()
     recorder.stop()  # close mic stream if hotkey was held at shutdown
     worker_thread.join(timeout=2)

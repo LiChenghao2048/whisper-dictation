@@ -14,6 +14,8 @@ def test_load_full(tmp_path):
         model: small
         language: en
         task: transcribe
+        device: 2
+        debug_audio: true
         server:
           host: localhost
           port: 50060
@@ -24,6 +26,8 @@ def test_load_full(tmp_path):
     assert cfg.model == "small"
     assert cfg.language == "en"
     assert cfg.task == "transcribe"
+    assert cfg.device == 2
+    assert cfg.debug_audio is True
     assert cfg.server.host == "localhost"
     assert cfg.server.port == 50060
 
@@ -40,7 +44,9 @@ def test_load_defaults_task_and_server(tmp_path):
           port: 9999
     """))
     cfg = Config.load(cfg_file)
-    assert cfg.task == "transcribe"  # default when omitted
+    assert cfg.task == "transcribe"    # default when omitted
+    assert cfg.device is None          # default when omitted
+    assert cfg.debug_audio is False    # default when omitted
     assert cfg.mode == "toggle"
     assert cfg.server.port == 9999
 

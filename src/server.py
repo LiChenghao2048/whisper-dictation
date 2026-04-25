@@ -5,6 +5,7 @@ import subprocess
 import time
 import wave
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import requests
@@ -77,10 +78,12 @@ class WhisperServer:
         self.stop()
         self.start(timeout=timeout)
 
-    def transcribe(self, audio: np.ndarray) -> str:
+    def transcribe(self, audio: np.ndarray, debug_path: Optional[Path] = None) -> str:
         if len(audio) < SAMPLE_RATE * MIN_AUDIO_SECONDS:
             return ""
         wav_bytes = _to_wav_bytes(audio)
+        if debug_path is not None:
+            debug_path.write_bytes(wav_bytes)
         r = requests.post(
             f"{self._base_url}{self._endpoint}",
             files={"file": ("audio.wav", wav_bytes, "audio/wav")},
