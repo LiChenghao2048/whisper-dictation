@@ -154,6 +154,8 @@ def main() -> None:
     listener.stop()
     recorder.stop()  # close mic stream if hotkey was held at shutdown
     worker_thread.join(timeout=2)
+    if worker_thread.is_alive():
+        print("[whisper-dictation] WARNING: worker thread did not exit cleanly", file=sys.stderr)
     server.stop()
 
 

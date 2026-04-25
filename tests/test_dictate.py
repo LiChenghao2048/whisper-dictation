@@ -197,3 +197,18 @@ def test_worker_continues_after_failed_restart(mocker):
 
     assert mock_server.restart.call_count == 1
     mock_typer.type_text.assert_called_once_with("recovered")
+
+
+def test_worker_keeps_processing_when_every_restart_fails(mocker):
+    """Worker must survive indefinitely when server is dead and every restart also fails."""
+    mock_server = mocker.MagicMock(spec=WhisperServer)
+    mock_server.transcribe.side_effect = requests.ConnectionError("refused")
+    mock_server.is_alive.return_value = False
+    mock_server.restart.side_effect = RuntimeError("restart failed")
+    mock_typer = mocker.MagicMock(spec=TextTyper)
+
+    audio = np.ones(16000, dtype="float32")
+    _run_worker(mock_server, mock_typer, [audio, audio, audio])
+
+    assert mock_server.restart.call_count == 3
+    mock_typer.type_text.assert_not_called()
