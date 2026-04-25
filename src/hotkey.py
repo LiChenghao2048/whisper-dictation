@@ -9,16 +9,27 @@ from pynput import keyboard
 class HotkeyListener:
     def __init__(
         self,
-        key: str,
+        keys: list[str],
         mode: str,
         on_start: Callable[[], None],
         on_stop: Callable[[], None],
     ) -> None:
-        self._key = getattr(keyboard.Key, key)
+        if not keys:
+            raise ValueError("hotkey must contain at least one key")
+        chord: set[keyboard.Key] = set()
+        for k in keys:
+            try:
+                chord.add(getattr(keyboard.Key, k))
+            except AttributeError:
+                valid = sorted(kb_key.name for kb_key in keyboard.Key)
+                raise ValueError(f"Unknown hotkey {k!r}. Valid key names: {valid}")
+        self._chord = chord
         self._mode = mode
         self._on_start = on_start
         self._on_stop = on_stop
         self._recording = False
+        self._held: set[keyboard.Key] = set()
+        self._chord_active = False  # True while chord is physically held after firing
         self._lock = threading.Lock()
         self._listener: keyboard.Listener | None = None
 
@@ -35,14 +46,23 @@ class HotkeyListener:
             self._listener = None
         with self._lock:
             self._recording = False
+            self._held.clear()
+            self._chord_active = False
 
     def is_alive(self) -> bool:
         return self._listener is not None and self._listener.is_alive()
 
     def _on_press(self, key: keyboard.Key | keyboard.KeyCode | None) -> None:
-        if key != self._key:
+        if key not in self._chord:
             return
         with self._lock:
+            self._held.add(key)
+            if self._held != self._chord:
+                return
+            if self._chord_active:
+                # OS key-repeat: chord still physically held — suppress re-fire
+                return
+            self._chord_active = True
             if self._mode == "hold" and not self._recording:
                 self._recording = True
                 self._on_start()
@@ -55,9 +75,11 @@ class HotkeyListener:
                     self._on_stop()
 
     def _on_release(self, key: keyboard.Key | keyboard.KeyCode | None) -> None:
-        if key != self._key:
+        if key not in self._chord:
             return
         with self._lock:
+            self._held.discard(key)
+            self._chord_active = False  # chord partially released — allow re-fire
             if self._mode == "hold" and self._recording:
                 self._recording = False
                 self._on_stop()

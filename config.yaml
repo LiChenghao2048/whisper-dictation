@@ -1,4 +1,4 @@
-hotkey: alt_r   # right option key
+hotkey: [cmd_r, alt_r]   # right command + right option
 mode: hold      # hold or toggle
 model: small
 language: en

@@ -1,14 +1,14 @@
 # whisper-dictation
 
-Hold **Right Option** to dictate — speech is transcribed on-device via WhisperKit and typed into whatever window is focused. No cloud, no API key.
+Hold **Right Command + Right Option** to dictate — speech is transcribed on-device via WhisperKit and typed into whatever window is focused. No cloud, no API key.
 
 ---
 
 ## How it works
 
 ```
-Right Option held → mic recording starts
-Right Option released → audio sent to local WhisperKit server → text typed into focused window
+Right Command + Right Option held → mic recording starts
+Right Command + Right Option released → audio sent to local WhisperKit server → text typed into focused window
 ```
 
 The WhisperKit server loads the model once at startup (~90 s) and stays warm for the entire session. All inference runs on Apple Silicon (Neural Engine).
@@ -42,7 +42,7 @@ cd whisper-dictation
 python3 src/dictate.py
 ```
 
-Wait for `ready — hold alt_r to dictate`, then hold **Right Option** and speak. Release to transcribe.
+Wait for `ready — hold cmd_r+alt_r to dictate`, then hold **Right Command + Right Option** and speak. Release to transcribe.
 
 Stop with **Ctrl+C**.
 
@@ -54,7 +54,7 @@ Edit `config.yaml`:
 
 | Key | Default | Options |
 |---|---|---|
-| `hotkey` | `alt_r` | any `pynput.keyboard.Key` name |
+| `hotkey` | `[cmd_r, alt_r]` | one key name or a YAML list for a chord |
 | `mode` | `hold` | `hold`, `toggle` |
 | `model` | `small` | `tiny`, `base`, `small`, `medium`, `large-v3` |
 | `language` | `en` | any Whisper language code (e.g. `zh`) |

@@ -21,7 +21,7 @@ def test_load_full(tmp_path):
           port: 50060
     """))
     cfg = Config.load(cfg_file)
-    assert cfg.hotkey == "alt_r"
+    assert cfg.hotkey == ["alt_r"]
     assert cfg.mode == "hold"
     assert cfg.model == "small"
     assert cfg.language == "en"
@@ -54,3 +54,52 @@ def test_load_defaults_task_and_server(tmp_path):
 def test_load_missing_file_raises():
     with pytest.raises(FileNotFoundError):
         Config.load(Path("/nonexistent/config.yaml"))
+
+
+def test_invalid_mode_raises(tmp_path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(textwrap.dedent("""\
+        hotkey: alt_r
+        mode: push
+        model: small
+        language: en
+    """))
+    with pytest.raises(ValueError, match="mode"):
+        Config.load(cfg_file)
+
+
+def test_invalid_task_raises(tmp_path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(textwrap.dedent("""\
+        hotkey: alt_r
+        mode: hold
+        model: small
+        language: en
+        task: summarize
+    """))
+    with pytest.raises(ValueError, match="task"):
+        Config.load(cfg_file)
+
+
+def test_chord_hotkey_loaded_as_list(tmp_path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(textwrap.dedent("""\
+        hotkey: [cmd_r, alt_r]
+        mode: hold
+        model: small
+        language: en
+    """))
+    cfg = Config.load(cfg_file)
+    assert cfg.hotkey == ["cmd_r", "alt_r"]
+
+
+def test_single_string_hotkey_normalized_to_list(tmp_path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(textwrap.dedent("""\
+        hotkey: alt_r
+        mode: hold
+        model: small
+        language: en
+    """))
+    cfg = Config.load(cfg_file)
+    assert cfg.hotkey == ["alt_r"]

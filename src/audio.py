@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import sys
 import wave
 from typing import Optional
 
@@ -43,6 +44,8 @@ class AudioRecorder:
             print(f"[whisper-dictation] WARNING: mic check failed: {exc}")
 
     def start(self) -> None:
+        if self._stream is not None:
+            return
         self._frames = []
         self._stream = sd.InputStream(
             samplerate=self._sample_rate,
@@ -63,6 +66,8 @@ class AudioRecorder:
         return audio
 
     def _callback(self, indata: np.ndarray, frames: int, time, status) -> None:
+        if status:
+            print(f"[whisper-dictation] audio overrun: {status}", file=sys.stderr)
         self._frames.append(indata[:, 0].copy())
 
 

@@ -4,6 +4,9 @@ from typing import Optional
 
 import yaml
 
+_VALID_MODES = {"hold", "toggle"}
+_VALID_TASKS = {"transcribe", "translate"}
+
 
 @dataclass
 class ServerConfig:
@@ -13,7 +16,7 @@ class ServerConfig:
 
 @dataclass
 class Config:
-    hotkey: str
+    hotkey: list[str]
     mode: str           # "hold" or "toggle"
     model: str
     language: str
@@ -26,13 +29,21 @@ class Config:
     def load(cls, path: Path) -> "Config":
         with open(path) as f:
             data = yaml.safe_load(f)
+        mode = data["mode"]
+        task = data.get("task", "transcribe")
+        if mode not in _VALID_MODES:
+            raise ValueError(f"config: mode must be one of {sorted(_VALID_MODES)}, got {mode!r}")
+        if task not in _VALID_TASKS:
+            raise ValueError(f"config: task must be one of {sorted(_VALID_TASKS)}, got {task!r}")
+        raw_hotkey = data["hotkey"]
+        hotkey = raw_hotkey if isinstance(raw_hotkey, list) else [raw_hotkey]
         srv = data.get("server", {})
         return cls(
-            hotkey=data["hotkey"],
-            mode=data["mode"],
+            hotkey=hotkey,
+            mode=mode,
             model=data["model"],
             language=data["language"],
-            task=data.get("task", "transcribe"),
+            task=task,
             device=data.get("device", None),
             debug_audio=data.get("debug_audio", False),
             server=ServerConfig(
