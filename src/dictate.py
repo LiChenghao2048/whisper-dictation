@@ -5,7 +5,6 @@ import queue
 import signal
 import sys
 import threading
-import time
 from pathlib import Path
 
 import numpy as np
@@ -95,8 +94,7 @@ def main() -> None:
 
     listener.start()
 
-    while not stop_event.is_set():
-        time.sleep(0.5)
+    stop_event.wait()
 
 
 if __name__ == "__main__":

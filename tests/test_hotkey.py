@@ -75,6 +75,13 @@ def test_other_key_ignored():
     on_stop.assert_not_called()
 
 
+# --- invalid key ---
+
+def test_invalid_key_name_raises_value_error():
+    with pytest.raises(ValueError, match="Unknown hotkey"):
+        HotkeyListener(key="not_a_real_key", mode="hold", on_start=MagicMock(), on_stop=MagicMock())
+
+
 # --- stop clears state ---
 
 def test_stop_resets_recording_flag(mocker):

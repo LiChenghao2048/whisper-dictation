@@ -56,6 +56,22 @@ def test_start_polls_health_until_ok(mocker):
     assert mock_get.call_count == 3
 
 
+def test_start_retries_on_health_check_timeout(mocker):
+    mocker.patch("server.subprocess.Popen")
+    mock_get = mocker.patch("server.requests.get")
+    mock_get.side_effect = [
+        requests.Timeout(),
+        requests.Timeout(),
+        MagicMock(status_code=200),
+    ]
+    mocker.patch("server.time.sleep")
+
+    server = _make_server()
+    server.start(timeout=10)
+
+    assert mock_get.call_count == 3
+
+
 def test_start_raises_timeout_when_server_never_healthy(mocker):
     mocker.patch("server.subprocess.Popen")
     mocker.patch("server.requests.get", side_effect=requests.ConnectionError())

@@ -13,7 +13,11 @@ class HotkeyListener:
         on_start: Callable[[], None],
         on_stop: Callable[[], None],
     ) -> None:
-        self._key = getattr(keyboard.Key, key)
+        try:
+            self._key = getattr(keyboard.Key, key)
+        except AttributeError:
+            valid = sorted(k.name for k in keyboard.Key)
+            raise ValueError(f"Unknown hotkey {key!r}. Valid key names: {valid}")
         self._mode = mode
         self._on_start = on_start
         self._on_stop = on_stop

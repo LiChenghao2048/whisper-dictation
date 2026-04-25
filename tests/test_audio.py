@@ -67,3 +67,34 @@ def test_multiple_start_stop_cycles_no_accumulation(mocker):
     # After 5 cycles, no frames should remain
     assert recorder._frames == []
     assert recorder._stream is None
+
+
+def test_start_while_already_recording_is_ignored(mocker):
+    mock_stream = mocker.MagicMock()
+    mock_input_stream = mocker.patch("audio.sd.InputStream", return_value=mock_stream)
+
+    recorder = AudioRecorder()
+    recorder.start()
+    recorder.start()  # second call should be a no-op
+
+    # InputStream was only constructed once
+    assert mock_input_stream.call_count == 1
+    assert recorder._stream is mock_stream
+
+
+def test_callback_logs_status_on_overrun(mocker, capsys):
+    recorder = AudioRecorder()
+    chunk = np.zeros((512, 1), dtype="float32")
+    recorder._callback(chunk, 512, None, "input overflow")
+
+    captured = capsys.readouterr()
+    assert "input overflow" in captured.err
+
+
+def test_callback_silent_when_status_is_none(mocker, capsys):
+    recorder = AudioRecorder()
+    chunk = np.zeros((512, 1), dtype="float32")
+    recorder._callback(chunk, 512, None, None)
+
+    captured = capsys.readouterr()
+    assert captured.err == ""

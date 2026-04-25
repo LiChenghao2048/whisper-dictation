@@ -51,7 +51,7 @@ class WhisperServer:
                 r = requests.get(f"{self._base_url}/health", timeout=2)
                 if r.status_code == 200:
                     return
-            except requests.ConnectionError:
+            except (requests.ConnectionError, requests.Timeout):
                 pass
             time.sleep(1)
         self.stop()
