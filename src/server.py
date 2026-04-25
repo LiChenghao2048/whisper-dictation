@@ -84,6 +84,7 @@ class WhisperServer:
         r = requests.post(
             f"{self._base_url}{self._endpoint}",
             files={"file": ("audio.wav", wav_bytes, "audio/wav")},
+            data={"model": "whisper-1"},  # required by OpenAI API spec; server uses its loaded model
             timeout=30,
         )
         r.raise_for_status()

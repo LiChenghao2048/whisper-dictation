@@ -159,6 +159,9 @@ def test_transcribe_returns_text(mocker):
     audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
     assert _make_server().transcribe(audio) == "hello world"
 
+    _, kwargs = mock_post.call_args
+    assert kwargs["data"]["model"] == "whisper-1"
+
 
 def test_transcribe_skips_too_short_audio():
     short = np.zeros(int(SAMPLE_RATE * MIN_AUDIO_SECONDS) - 1, dtype="float32")
