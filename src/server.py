@@ -48,6 +48,12 @@ class WhisperServer:
         )
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
+            if self._process.poll() is not None:
+                exit_code = self._process.returncode
+                self._process = None
+                raise RuntimeError(
+                    f"WhisperKit server exited during startup (exit code {exit_code})"
+                )
             try:
                 r = requests.get(f"{self._base_url}/health", timeout=2)
                 if r.status_code == 200:

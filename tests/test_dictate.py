@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import requests
 
-from dictate import make_worker
+from dictate import make_callbacks, make_worker
 from server import WhisperServer
 from typer import TextTyper
 
@@ -127,6 +127,34 @@ def test_recorder_stopped_on_shutdown_while_recording(mocker):
     mock_stream.close.assert_called_once()
     assert recorder._stream is None
     assert recorder._frames == []
+
+
+# --- mic error isolation ---
+
+def test_portaudio_error_on_start_does_not_propagate(mocker, capsys):
+    """PortAudio errors must not propagate through on_start — that would kill pynput's listener."""
+    from audio import AudioRecorder
+    broken_recorder = mocker.MagicMock(spec=AudioRecorder)
+    broken_recorder.start.side_effect = Exception("PortAudioError -9986")
+
+    on_start, _ = make_callbacks(broken_recorder, queue.Queue())
+    on_start()  # must not raise
+
+    assert "mic error" in capsys.readouterr().err
+
+
+def test_portaudio_error_on_stop_does_not_propagate_and_skips_queue(mocker, capsys):
+    """PortAudio errors in on_stop must be caught; no audio must be queued."""
+    from audio import AudioRecorder
+    broken_recorder = mocker.MagicMock(spec=AudioRecorder)
+    broken_recorder.stop.side_effect = Exception("PortAudioError -9986")
+
+    work_queue: queue.Queue = queue.Queue()
+    _, on_stop = make_callbacks(broken_recorder, work_queue)
+    on_stop()  # must not raise
+
+    assert "mic error" in capsys.readouterr().err
+    assert work_queue.empty()
 
 
 def test_worker_debug_audio_prints_afplay_command(mocker, capsys):

@@ -107,6 +107,18 @@ def test_check_verbose_prints_device_list_on_silent_mic(mocker, capsys):
     assert "FakeMic" in captured.out
 
 
+def test_check_device_zero_named_correctly_in_warning(mocker, capsys):
+    silent = np.zeros((int(0.1 * SAMPLE_RATE), 1), dtype="float32")
+    mocker.patch("audio.sd.rec", return_value=silent)
+    mocker.patch("audio.sd.wait")
+    mocker.patch("audio.sd.query_devices", return_value={"name": "BuiltInMic"})
+
+    AudioRecorder(device=0).check()
+
+    captured = capsys.readouterr()
+    assert "BuiltInMic" in captured.out  # device=0 must not fall through to system default
+
+
 def test_check_passes_silently_on_active_mic(mocker, capsys):
     loud = np.ones((int(0.1 * SAMPLE_RATE), 1), dtype="float32") * 0.05
     mocker.patch("audio.sd.rec", return_value=loud)

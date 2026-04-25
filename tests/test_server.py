@@ -39,8 +39,16 @@ def test_translate_task_uses_translations_endpoint():
 
 # --- start / stop ---
 
+def _running_proc(mocker):
+    """Return a mock Popen whose poll() signals the process is still alive."""
+    mock_proc = mocker.MagicMock()
+    mock_proc.poll.return_value = None
+    return mock_proc
+
+
 def test_start_polls_health_until_ok(mocker):
-    mocker.patch("server.subprocess.Popen")
+    mock_proc = _running_proc(mocker)
+    mocker.patch("server.subprocess.Popen", return_value=mock_proc)
     mock_get = mocker.patch("server.requests.get")
     mock_get.side_effect = [
         requests.ConnectionError(),
@@ -56,7 +64,8 @@ def test_start_polls_health_until_ok(mocker):
 
 def test_start_handles_read_timeout_not_just_connection_error(mocker):
     """ReadTimeout must not leak the subprocess — it must be caught like ConnectionError."""
-    mocker.patch("server.subprocess.Popen")
+    mock_proc = _running_proc(mocker)
+    mocker.patch("server.subprocess.Popen", return_value=mock_proc)
     mock_get = mocker.patch("server.requests.get")
     mock_get.side_effect = [
         requests.ReadTimeout(),
@@ -70,10 +79,11 @@ def test_start_handles_read_timeout_not_just_connection_error(mocker):
 
 
 def test_start_raises_timeout_when_server_never_healthy(mocker):
-    mocker.patch("server.subprocess.Popen")
+    mock_proc = _running_proc(mocker)
+    mocker.patch("server.subprocess.Popen", return_value=mock_proc)
     mocker.patch("server.requests.get", side_effect=requests.ConnectionError())
     mocker.patch("server.time.sleep")
-    # First call returns 0 (start), subsequent calls return a value past deadline
+    # First call returns 0 (deadline calc), subsequent calls return a value past deadline
     mocker.patch(
         "server.time.monotonic",
         side_effect=itertools.chain([0.0], itertools.repeat(200.0)),
@@ -81,6 +91,22 @@ def test_start_raises_timeout_when_server_never_healthy(mocker):
 
     with pytest.raises(TimeoutError):
         _make_server().start(timeout=1)
+
+
+def test_start_raises_immediately_when_process_exits(mocker):
+    """If WhisperKit exits during startup (bad model, missing weights), raise at once."""
+    mock_proc = mocker.MagicMock()
+    mock_proc.poll.return_value = 1
+    mock_proc.returncode = 1
+    mocker.patch("server.subprocess.Popen", return_value=mock_proc)
+    mocker.patch("server.time.sleep")
+    mocker.patch(
+        "server.time.monotonic",
+        side_effect=itertools.chain([0.0], itertools.repeat(0.5)),
+    )
+
+    with pytest.raises(RuntimeError, match="exited during startup"):
+        _make_server().start(timeout=100)
 
 
 def test_stop_terminates_process(mocker):
@@ -135,7 +161,8 @@ def test_is_alive_false_when_process_exited(mocker):
 
 
 def test_restart_stops_then_starts(mocker):
-    mocker.patch("server.subprocess.Popen")
+    mock_proc = _running_proc(mocker)
+    mocker.patch("server.subprocess.Popen", return_value=mock_proc)
     mock_get = mocker.patch("server.requests.get", return_value=MagicMock(status_code=200))
     mocker.patch("server.time.sleep")
 

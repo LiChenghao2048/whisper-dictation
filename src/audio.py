@@ -31,7 +31,7 @@ class AudioRecorder:
             sd.wait()
             rms = float(np.sqrt(np.mean(test**2)))
             if rms < WARN_RMS_THRESHOLD:
-                device_name = sd.query_devices(self._device or sd.default.device[0])["name"]
+                device_name = sd.query_devices(self._device if self._device is not None else sd.default.device[0])["name"]
                 print(
                     f"[whisper-dictation] WARNING: mic '{device_name}' appears silent "
                     f"(RMS={rms:.6f}). Check Privacy & Security → Microphone, "

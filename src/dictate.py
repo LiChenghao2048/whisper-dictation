@@ -66,6 +66,31 @@ def make_worker(
     return worker
 
 
+def make_callbacks(
+    recorder: AudioRecorder,
+    work_queue: queue.Queue,
+):
+    """Return (on_start, on_stop) callables. Extracted so they can be unit-tested independently."""
+    def on_start() -> None:
+        try:
+            recorder.start()
+        except Exception as exc:
+            print(f"[whisper-dictation] mic error on start: {exc}", file=sys.stderr)
+
+    def on_stop() -> None:
+        try:
+            audio = recorder.stop()
+        except Exception as exc:
+            print(f"[whisper-dictation] mic error on stop: {exc}", file=sys.stderr)
+            return
+        try:
+            work_queue.put_nowait(audio)
+        except queue.Full:
+            print("[whisper-dictation] queue full — audio dropped", file=sys.stderr)
+
+    return on_start, on_stop
+
+
 def main() -> None:
     project_root = Path(__file__).parent.parent
     config = Config.load(project_root / "config.yaml")
@@ -88,15 +113,7 @@ def main() -> None:
     work_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=_QUEUE_MAX)
     stop_event = threading.Event()
 
-    def on_start() -> None:
-        recorder.start()
-
-    def on_stop() -> None:
-        audio = recorder.stop()
-        try:
-            work_queue.put_nowait(audio)
-        except queue.Full:
-            print("[whisper-dictation] queue full — audio dropped", file=sys.stderr)
+    on_start, on_stop = make_callbacks(recorder, work_queue)
 
     listener = HotkeyListener(
         key=config.hotkey,
