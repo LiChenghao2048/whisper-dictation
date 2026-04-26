@@ -58,7 +58,7 @@ class AudioRecorder:
             self._stream.start()
         except Exception as exc:
             # PortAudio state is stale (e.g. default device changed) — reinitialize and retry once.
-            # sd._terminate/_initialize wrap Pa_Terminate/Pa_Initialize; tested on sounddevice 0.4.x.
+            # sd._terminate/_initialize wrap Pa_Terminate/Pa_Initialize; tested on sounddevice 0.5.x.
             self._stream = None
             sd._terminate()
             sd._initialize()
@@ -72,6 +72,7 @@ class AudioRecorder:
                 )
                 self._stream.start()
             except Exception as retry_exc:
+                self._stream = None
                 raise retry_exc from exc
 
     def stop(self) -> np.ndarray:

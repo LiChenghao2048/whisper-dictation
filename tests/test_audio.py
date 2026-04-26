@@ -208,3 +208,19 @@ def test_start_stream_is_none_when_terminate_raises(mocker):
         recorder.start()
 
     assert recorder._stream is None
+
+
+def test_start_stream_is_none_when_retry_stream_start_raises(mocker):
+    """If InputStream() succeeds on the retry but .start() raises, _stream must be
+    reset to None so the guard on the next hotkey press doesn't silently skip it."""
+    bad_stream = mocker.MagicMock()
+    bad_stream.start.side_effect = Exception("start failed")
+    mocker.patch("audio.sd.InputStream", side_effect=[Exception("open failed"), bad_stream])
+    mocker.patch("audio.sd._terminate")
+    mocker.patch("audio.sd._initialize")
+
+    recorder = AudioRecorder()
+    with pytest.raises(Exception, match="start failed"):
+        recorder.start()
+
+    assert recorder._stream is None
