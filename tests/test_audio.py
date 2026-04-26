@@ -181,13 +181,30 @@ def test_start_reinitializes_portaudio_and_retries_on_failure(mocker):
 
 
 def test_start_propagates_error_when_retry_also_fails(mocker):
-    """If the retry after reinitialization also fails, the exception propagates."""
-    mocker.patch("audio.sd.InputStream", side_effect=Exception("still broken"))
+    """If the retry after reinitialization also fails, the retry exception is raised,
+    chained to the original, and _stream is left as None."""
+    mocker.patch("audio.sd.InputStream", side_effect=[Exception("first failure"), Exception("still broken")])
     mocker.patch("audio.sd._terminate")
     mocker.patch("audio.sd._initialize")
 
     recorder = AudioRecorder()
-    with pytest.raises(Exception, match="still broken"):
+    with pytest.raises(Exception, match="still broken") as exc_info:
+        recorder.start()
+
+    assert exc_info.value.__cause__ is not None
+    assert "first failure" in str(exc_info.value.__cause__)
+    assert recorder._stream is None
+
+
+def test_start_stream_is_none_when_terminate_raises(mocker):
+    """If sd._terminate() itself throws during recovery, _stream must remain None
+    so the next hotkey press retries cleanly rather than seeing a half-init stream."""
+    mocker.patch("audio.sd.InputStream", side_effect=Exception("open failed"))
+    mocker.patch("audio.sd._terminate", side_effect=RuntimeError("terminate failed"))
+    mocker.patch("audio.sd._initialize")
+
+    recorder = AudioRecorder()
+    with pytest.raises(RuntimeError, match="terminate failed"):
         recorder.start()
 
     assert recorder._stream is None
