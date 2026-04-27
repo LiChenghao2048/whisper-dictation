@@ -22,6 +22,8 @@ def _make_server(**kwargs):
         task="transcribe",
         host="localhost",
         port=50060,
+        temperature=0.0,
+        prompt=None,
     )
     defaults.update(kwargs)
     return WhisperServer(**defaults)
@@ -216,6 +218,42 @@ def test_transcribe_returns_text(mocker):
 
     _, kwargs = mock_post.call_args
     assert kwargs["data"]["model"] == "whisper-1"
+
+
+def test_transcribe_sends_temperature(mocker):
+    mock_post = mocker.patch("server.requests.post")
+    mock_post.return_value.json.return_value = {"text": "hello"}
+    mock_post.return_value.raise_for_status = MagicMock()
+
+    audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
+    _make_server(temperature=0.4).transcribe(audio)
+
+    _, kwargs = mock_post.call_args
+    assert kwargs["data"]["temperature"] == "0.4"
+
+
+def test_transcribe_sends_prompt_when_set(mocker):
+    mock_post = mocker.patch("server.requests.post")
+    mock_post.return_value.json.return_value = {"text": "hello"}
+    mock_post.return_value.raise_for_status = MagicMock()
+
+    audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
+    _make_server(prompt="WhisperKit CoreML").transcribe(audio)
+
+    _, kwargs = mock_post.call_args
+    assert kwargs["data"]["prompt"] == "WhisperKit CoreML"
+
+
+def test_transcribe_omits_prompt_when_none(mocker):
+    mock_post = mocker.patch("server.requests.post")
+    mock_post.return_value.json.return_value = {"text": "hello"}
+    mock_post.return_value.raise_for_status = MagicMock()
+
+    audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
+    _make_server(prompt=None).transcribe(audio)
+
+    _, kwargs = mock_post.call_args
+    assert "prompt" not in kwargs["data"]
 
 
 def test_transcribe_skips_too_short_audio():

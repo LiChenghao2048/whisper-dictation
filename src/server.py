@@ -23,6 +23,8 @@ class WhisperServer:
         task: str,
         host: str,
         port: int,
+        temperature: float = 0.0,
+        prompt: Optional[str] = None,
     ) -> None:
         self._cmd = [
             str(binary), "serve",
@@ -32,6 +34,8 @@ class WhisperServer:
             "--host", host,
             "--port", str(port),
         ]
+        self._temperature = temperature
+        self._prompt = prompt
         self._endpoint = (
             "/v1/audio/translations"
             if task == "translate"
@@ -95,10 +99,13 @@ class WhisperServer:
         wav_bytes = _to_wav_bytes(audio)
         if debug_path is not None:
             debug_path.write_bytes(wav_bytes)
+        form: dict = {"model": "whisper-1", "temperature": str(self._temperature)}
+        if self._prompt:
+            form["prompt"] = self._prompt
         r = requests.post(
             f"{self._base_url}{self._endpoint}",
             files={"file": ("audio.wav", wav_bytes, "audio/wav")},
-            data={"model": "whisper-1"},  # required by OpenAI API spec; server uses its loaded model
+            data=form,
             timeout=30,
         )
         r.raise_for_status()
