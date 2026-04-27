@@ -31,7 +31,11 @@ class TextCleaner:
             timeout=15,
         )
         r.raise_for_status()
-        return r.json()["message"]["content"].strip()
+        body = r.json()
+        try:
+            return body["message"]["content"].strip()
+        except (KeyError, TypeError) as exc:
+            raise ValueError(f"unexpected Ollama response shape: {body}") from exc
 
     def is_available(self) -> bool:
         try:

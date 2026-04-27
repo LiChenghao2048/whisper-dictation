@@ -112,6 +112,19 @@ def test_invalid_temperature_raises(tmp_path):
         Config.load(cfg_file)
 
 
+def test_temperature_below_zero_raises(tmp_path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(textwrap.dedent("""\
+        hotkey: alt_r
+        mode: hold
+        model: small
+        language: en
+        temperature: -0.1
+    """))
+    with pytest.raises(ValueError, match="temperature"):
+        Config.load(cfg_file)
+
+
 def test_empty_prompt_treated_as_none(tmp_path):
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(textwrap.dedent("""\

@@ -42,6 +42,15 @@ def test_clean_sends_original_text_in_user_message(mocker):
     assert "uh I meant to say hello" in user_msg["content"]
 
 
+def test_clean_raises_value_error_on_unexpected_response_shape(mocker):
+    mock_post = mocker.patch("cleanup.requests.post")
+    mock_post.return_value.json.return_value = {"error": "model 'llama3.2' not found"}
+    mock_post.return_value.raise_for_status = mocker.MagicMock()
+
+    with pytest.raises(ValueError, match="unexpected Ollama response shape"):
+        _make_cleaner().clean("hello")
+
+
 def test_clean_raises_on_http_error(mocker):
     mock_post = mocker.patch("cleanup.requests.post")
     mock_post.return_value.raise_for_status.side_effect = requests.HTTPError("500")
