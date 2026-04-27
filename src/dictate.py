@@ -14,6 +14,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).parent))
 
 from audio import AudioRecorder
+from cleanup import TextCleaner
 from config import Config
 from hotkey import HotkeyListener
 from server import WhisperServer
@@ -29,6 +30,7 @@ def make_worker(
     work_queue: queue.Queue,
     stop_event: threading.Event,
     debug_audio: bool = False,
+    cleaner: TextCleaner | None = None,
 ):
     """Return the worker callable. Extracted so it can be unit-tested independently."""
     _debug_counter = [0]
@@ -45,6 +47,11 @@ def make_worker(
                     _debug_counter[0] += 1
                     debug_path = _DEBUG_DIR / f"wd-debug-{_debug_counter[0]:03d}.wav"
                 text = server.transcribe(audio, debug_path=debug_path)
+                if text and cleaner is not None:
+                    try:
+                        text = cleaner.clean(text)
+                    except Exception as exc:
+                        print(f"[whisper-dictation] cleanup error (using raw): {exc}", file=sys.stderr)
                 if text:
                     print(f"[whisper-dictation] transcribed: {text!r}", file=sys.stderr)
                     typer.type_text(text)
@@ -109,7 +116,16 @@ def main() -> None:
         task=config.task,
         host=config.server.host,
         port=config.server.port,
+        temperature=config.temperature,
+        prompt=config.prompt,
     )
+    cleaner: TextCleaner | None = None
+    if config.cleanup.enabled:
+        cleaner = TextCleaner(
+            model=config.cleanup.model,
+            host=config.cleanup.host,
+            port=config.cleanup.port,
+        )
 
     work_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=_QUEUE_MAX)
     stop_event = threading.Event()
@@ -136,12 +152,23 @@ def main() -> None:
 
     recorder.check(verbose=config.debug_audio)  # warn early if mic is silent; list devices only in debug mode
 
+    if cleaner is not None:
+        if cleaner.is_available():
+            print(f"[whisper-dictation] Ollama cleanup enabled ({config.cleanup.model})")
+        else:
+            print(
+                f"[whisper-dictation] WARNING: Ollama not reachable at "
+                f"{config.cleanup.host}:{config.cleanup.port} — cleanup disabled for this session",
+                file=sys.stderr,
+            )
+            cleaner = None
+
     print(f"[whisper-dictation] ready — {config.mode} {'+'.join(config.hotkey)} to dictate")
     if config.debug_audio:
         print(f"[whisper-dictation] debug_audio on — recordings saved to {_DEBUG_DIR}/wd-debug-NNN.wav")
 
     worker_thread = threading.Thread(
-        target=make_worker(server, typer, work_queue, stop_event, config.debug_audio),
+        target=make_worker(server, typer, work_queue, stop_event, config.debug_audio, cleaner),
         daemon=True,
     )
     worker_thread.start()

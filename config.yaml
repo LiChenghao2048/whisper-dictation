@@ -3,6 +3,11 @@ mode: hold      # hold or toggle
 model: small
 language: en
 task: transcribe  # transcribe or translate
+temperature: 0.0  # 0.0 = deterministic; try 0.2–0.4 for more natural speech
+
+# Optional: seed text to improve accuracy for names, jargon, domain vocabulary.
+# Example: prompt: "Chenghao, WhisperKit, CoreML, argmax-cli"
+prompt:
 
 # Input device index for the microphone.
 # Leave blank (null) to use the system default.
@@ -15,3 +20,12 @@ debug_audio: false  # set true to save each recording to /tmp/wd-debug-NNN.wav
 server:
   host: localhost
   port: 50060
+
+# Local Ollama LLM cleanup: removes filler words (uh, um, ah, eh, hmm) and resolves
+# mid-sentence corrections. Requires Ollama running with the model pulled locally.
+# Install Ollama: https://ollama.com — then run: ollama pull llama3.2
+cleanup:
+  enabled: false
+  model: llama3.2
+  host: localhost
+  port: 11434
