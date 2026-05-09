@@ -18,7 +18,7 @@ def _make_server(**kwargs):
     defaults = dict(
         binary=BINARY,
         model="small",
-        language="en",
+        language=None,
         task="transcribe",
         host="localhost",
         port=50060,
@@ -330,3 +330,14 @@ def test_transcribe_simplified_skipped_for_empty_text(mocker):
     result = _make_server(simplified=True).transcribe(audio)
 
     assert result == ""
+
+
+def test_transcribe_simplified_passes_through_non_cjk_text(mocker):
+    mock_post = mocker.patch("server.requests.post")
+    mock_post.return_value.json.return_value = {"text": "Hello world"}
+    mock_post.return_value.raise_for_status = MagicMock()
+
+    audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
+    result = _make_server(simplified=True).transcribe(audio)
+
+    assert result == "Hello world"
