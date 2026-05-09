@@ -1,7 +1,8 @@
 hotkey: [cmd_r, alt_r]   # right command + right option
 mode: hold      # hold or toggle
 model: small
-language: en
+language:           # set "zh" or "en"
+simplified: true  # convert Traditional Chinese output to Simplified Chinese
 task: transcribe  # transcribe or translate
 temperature: 0.0  # 0.0 = deterministic; try 0.2–0.4 for more natural speech
 

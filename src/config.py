@@ -27,7 +27,8 @@ class Config:
     hotkey: list[str]
     mode: str           # "hold" or "toggle"
     model: str
-    language: str
+    language: Optional[str]  # None = auto-detect; "zh"/"en"/etc to force a language
+    simplified: bool         # convert Traditional Chinese to Simplified after transcription
     task: str           # "transcribe" or "translate"
     temperature: float  # whisper sampling temperature 0.0–1.0; 0.0 = deterministic
     prompt: Optional[str]   # seed text to guide transcription accuracy
@@ -57,7 +58,8 @@ class Config:
             hotkey=hotkey,
             mode=mode,
             model=data["model"],
-            language=data["language"],
+            language=data.get("language") or None,
+            simplified=bool(data.get("simplified", False)),
             task=task,
             temperature=temperature,
             prompt=data.get("prompt") or None,

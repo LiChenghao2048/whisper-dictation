@@ -9,6 +9,7 @@ from typing import Optional
 
 import numpy as np
 import requests
+import zhconv
 
 SAMPLE_RATE = 16_000
 MIN_AUDIO_SECONDS = 0.1
@@ -19,23 +20,26 @@ class WhisperServer:
         self,
         binary: Path,
         model: str,
-        language: str,
+        language: Optional[str],
         task: str,
         host: str,
         port: int,
         temperature: float = 0.0,
         prompt: Optional[str] = None,
+        simplified: bool = False,
     ) -> None:
         self._cmd = [
             str(binary), "serve",
             "--model", model,
-            "--language", language,
             "--task", task,
             "--host", host,
             "--port", str(port),
         ]
+        if language:
+            self._cmd += ["--language", language]
         self._temperature = temperature
         self._prompt = prompt
+        self._simplified = simplified
         self._endpoint = (
             "/v1/audio/translations"
             if task == "translate"
@@ -109,7 +113,10 @@ class WhisperServer:
             timeout=30,
         )
         r.raise_for_status()
-        return r.json().get("text", "").strip()
+        text = r.json().get("text", "").strip()
+        if self._simplified and text:
+            text = zhconv.convert(text, "zh-hans")
+        return text
 
 
 def _to_wav_bytes(audio: np.ndarray, sample_rate: int = SAMPLE_RATE) -> bytes:

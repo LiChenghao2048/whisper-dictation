@@ -13,6 +13,7 @@ def test_load_full(tmp_path):
         mode: hold
         model: small
         language: en
+        simplified: true
         task: transcribe
         temperature: 0.3
         prompt: "hello world"
@@ -32,6 +33,7 @@ def test_load_full(tmp_path):
     assert cfg.mode == "hold"
     assert cfg.model == "small"
     assert cfg.language == "en"
+    assert cfg.simplified is True
     assert cfg.task == "transcribe"
     assert cfg.temperature == 0.3
     assert cfg.prompt == "hello world"
@@ -58,6 +60,8 @@ def test_load_defaults_task_and_server(tmp_path):
     """))
     cfg = Config.load(cfg_file)
     assert cfg.task == "transcribe"    # default when omitted
+    assert cfg.language == "zh"        # explicit language preserved
+    assert cfg.simplified is False     # default when omitted
     assert cfg.temperature == 0.0      # default when omitted
     assert cfg.prompt is None          # default when omitted
     assert cfg.device is None          # default when omitted
@@ -180,3 +184,15 @@ def test_single_string_hotkey_normalized_to_list(tmp_path):
     """))
     cfg = Config.load(cfg_file)
     assert cfg.hotkey == ["alt_r"]
+
+
+def test_blank_language_treated_as_none(tmp_path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(textwrap.dedent("""\
+        hotkey: alt_r
+        mode: hold
+        model: small
+        language:
+    """))
+    cfg = Config.load(cfg_file)
+    assert cfg.language is None

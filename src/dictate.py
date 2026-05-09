@@ -118,6 +118,7 @@ def main() -> None:
         port=config.server.port,
         temperature=config.temperature,
         prompt=config.prompt,
+        simplified=config.simplified,
     )
     cleaner: TextCleaner | None = None
     if config.cleanup.enabled:
