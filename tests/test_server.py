@@ -18,10 +18,12 @@ def _make_server(**kwargs):
     defaults = dict(
         binary=BINARY,
         model="small",
-        language="en",
+        language=None,
         task="transcribe",
         host="localhost",
         port=50060,
+        temperature=0.0,
+        prompt=None,
     )
     defaults.update(kwargs)
     return WhisperServer(**defaults)
@@ -35,6 +37,18 @@ def test_transcribe_task_uses_transcriptions_endpoint():
 
 def test_translate_task_uses_translations_endpoint():
     assert _make_server(task="translate")._endpoint == "/v1/audio/translations"
+
+
+def test_language_included_in_cmd_when_set():
+    server = _make_server(language="zh")
+    assert "--language" in server._cmd
+    idx = server._cmd.index("--language")
+    assert server._cmd[idx + 1] == "zh"
+
+
+def test_language_omitted_from_cmd_when_none():
+    server = _make_server(language=None)
+    assert "--language" not in server._cmd
 
 
 # --- start / stop ---
@@ -218,6 +232,42 @@ def test_transcribe_returns_text(mocker):
     assert kwargs["data"]["model"] == "whisper-1"
 
 
+def test_transcribe_sends_temperature(mocker):
+    mock_post = mocker.patch("server.requests.post")
+    mock_post.return_value.json.return_value = {"text": "hello"}
+    mock_post.return_value.raise_for_status = MagicMock()
+
+    audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
+    _make_server(temperature=0.4).transcribe(audio)
+
+    _, kwargs = mock_post.call_args
+    assert kwargs["data"]["temperature"] == "0.4"
+
+
+def test_transcribe_sends_prompt_when_set(mocker):
+    mock_post = mocker.patch("server.requests.post")
+    mock_post.return_value.json.return_value = {"text": "hello"}
+    mock_post.return_value.raise_for_status = MagicMock()
+
+    audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
+    _make_server(prompt="WhisperKit CoreML").transcribe(audio)
+
+    _, kwargs = mock_post.call_args
+    assert kwargs["data"]["prompt"] == "WhisperKit CoreML"
+
+
+def test_transcribe_omits_prompt_when_none(mocker):
+    mock_post = mocker.patch("server.requests.post")
+    mock_post.return_value.json.return_value = {"text": "hello"}
+    mock_post.return_value.raise_for_status = MagicMock()
+
+    audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
+    _make_server(prompt=None).transcribe(audio)
+
+    _, kwargs = mock_post.call_args
+    assert "prompt" not in kwargs["data"]
+
+
 def test_transcribe_skips_too_short_audio():
     short = np.zeros(int(SAMPLE_RATE * MIN_AUDIO_SECONDS) - 1, dtype="float32")
     assert _make_server().transcribe(short) == ""
@@ -245,3 +295,49 @@ def test_to_wav_bytes_clips_values():
     samples = np.frombuffer(raw, dtype="<i2")
     assert samples[0] == 32767   # +overflow clipped to int16 max
     assert samples[1] == -32768  # -overflow clipped to int16 min
+
+
+# --- simplified Chinese conversion ---
+
+def test_transcribe_converts_traditional_to_simplified(mocker):
+    mock_post = mocker.patch("server.requests.post")
+    mock_post.return_value.json.return_value = {"text": "漢字"}  # Traditional
+    mock_post.return_value.raise_for_status = MagicMock()
+
+    audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
+    result = _make_server(simplified=True).transcribe(audio)
+
+    assert result == "汉字"  # Simplified
+
+
+def test_transcribe_no_conversion_when_simplified_false(mocker):
+    mock_post = mocker.patch("server.requests.post")
+    mock_post.return_value.json.return_value = {"text": "漢字"}
+    mock_post.return_value.raise_for_status = MagicMock()
+
+    audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
+    result = _make_server(simplified=False).transcribe(audio)
+
+    assert result == "漢字"  # unchanged
+
+
+def test_transcribe_simplified_skipped_for_empty_text(mocker):
+    mock_post = mocker.patch("server.requests.post")
+    mock_post.return_value.json.return_value = {"text": ""}
+    mock_post.return_value.raise_for_status = MagicMock()
+
+    audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
+    result = _make_server(simplified=True).transcribe(audio)
+
+    assert result == ""
+
+
+def test_transcribe_simplified_passes_through_non_cjk_text(mocker):
+    mock_post = mocker.patch("server.requests.post")
+    mock_post.return_value.json.return_value = {"text": "Hello world"}
+    mock_post.return_value.raise_for_status = MagicMock()
+
+    audio = np.ones(SAMPLE_RATE * 2, dtype="float32") * 0.1
+    result = _make_server(simplified=True).transcribe(audio)
+
+    assert result == "Hello world"

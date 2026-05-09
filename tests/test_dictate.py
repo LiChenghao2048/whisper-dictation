@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import requests
 
+from cleanup import TextCleaner
 from dictate import make_callbacks, make_worker
 from server import WhisperServer
 from typer import TextTyper
@@ -275,4 +276,70 @@ def test_worker_keeps_processing_when_every_restart_fails(mocker):
     _run_worker(mock_server, mock_typer, [audio, audio, audio])
 
     assert mock_server.restart.call_count == 3
+    mock_typer.type_text.assert_not_called()
+
+
+# --- cleanup ---
+
+def _run_worker_with_cleaner(mock_server, mock_typer, mock_cleaner, audios):
+    work_queue: queue.Queue = queue.Queue(maxsize=5)
+    stop_event = threading.Event()
+
+    t = threading.Thread(
+        target=make_worker(mock_server, mock_typer, work_queue, stop_event, cleaner=mock_cleaner),
+        daemon=True,
+    )
+    t.start()
+    for audio in audios:
+        work_queue.put(audio)
+    work_queue.join()
+    stop_event.set()
+    t.join(timeout=2)
+
+
+def test_worker_calls_cleaner_and_types_cleaned_text(mocker):
+    mock_server = mocker.MagicMock(spec=WhisperServer)
+    mock_server.transcribe.return_value = "uh hello um world"
+    mock_typer = mocker.MagicMock(spec=TextTyper)
+    mock_cleaner = mocker.MagicMock(spec=TextCleaner)
+    mock_cleaner.clean.return_value = "hello world"
+
+    _run_worker_with_cleaner(mock_server, mock_typer, mock_cleaner, [np.ones(16000, dtype="float32")])
+
+    mock_cleaner.clean.assert_called_once_with("uh hello um world")
+    mock_typer.type_text.assert_called_once_with("hello world")
+
+
+def test_worker_skips_cleaner_when_none(mocker):
+    mock_server = mocker.MagicMock(spec=WhisperServer)
+    mock_server.transcribe.return_value = "uh hello"
+    mock_typer = mocker.MagicMock(spec=TextTyper)
+
+    _run_worker(mock_server, mock_typer, [np.ones(16000, dtype="float32")])
+
+    mock_typer.type_text.assert_called_once_with("uh hello")
+
+
+def test_worker_falls_back_to_raw_text_on_cleanup_error(mocker, capsys):
+    mock_server = mocker.MagicMock(spec=WhisperServer)
+    mock_server.transcribe.return_value = "uh hello"
+    mock_typer = mocker.MagicMock(spec=TextTyper)
+    mock_cleaner = mocker.MagicMock(spec=TextCleaner)
+    mock_cleaner.clean.side_effect = requests.ConnectionError("refused")
+
+    _run_worker_with_cleaner(mock_server, mock_typer, mock_cleaner, [np.ones(16000, dtype="float32")])
+
+    assert "cleanup error" in capsys.readouterr().err
+    mock_typer.type_text.assert_called_once_with("uh hello")
+
+
+def test_worker_skips_cleaner_on_empty_transcription(mocker):
+    mock_server = mocker.MagicMock(spec=WhisperServer)
+    mock_server.transcribe.return_value = ""
+    mock_typer = mocker.MagicMock(spec=TextTyper)
+    mock_cleaner = mocker.MagicMock(spec=TextCleaner)
+
+    _run_worker_with_cleaner(mock_server, mock_typer, mock_cleaner, [np.ones(16000, dtype="float32")])
+
+    mock_cleaner.clean.assert_not_called()
     mock_typer.type_text.assert_not_called()
